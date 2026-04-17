@@ -22,6 +22,8 @@ let currentK = 5;
 let xAxisFeature = 'energy';
 let yAxisFeature = 'danceability';
 let currentAssignments = [];
+let elbowChartInstance;
+let silhouetteChartInstance;
 
 const loader = document.getElementById('loader');
 const kDisplay = document.getElementById('k-display');
@@ -66,6 +68,23 @@ function init() {
         updateChartData();
     });
     
+    const evaluateBtn = document.getElementById('evaluate-btn');
+    const closeModalBtn = document.getElementById('close-modal');
+    const evalModal = document.getElementById('eval-modal');
+    
+    if (evaluateBtn) {
+        evaluateBtn.addEventListener('click', () => {
+            evalModal.classList.remove('hidden');
+            runEvaluation();
+        });
+    }
+    
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+            evalModal.classList.add('hidden');
+        });
+    }
+    
     loader.style.opacity = '0';
     
     // Initial Calculation
@@ -75,6 +94,7 @@ function init() {
 function recalculateClusters() {
     try {
         const dataset = musicData.data.map(d => d.scaled);
+        
         console.time("KMeans");
         currentAssignments = kmeans(dataset, currentK, 50);
         console.timeEnd("KMeans");
@@ -196,6 +216,147 @@ function createChart(datasets) {
                         font: { size: 12, weight: 'bold' }
                     }
                 }
+            }
+        }
+    });
+}
+
+function runEvaluation() {
+    const progressContainer = document.getElementById('eval-progress');
+    const chartsWrapper = document.getElementById('eval-charts');
+    const statsContainer = document.getElementById('eval-stats');
+    const statusText = document.getElementById('eval-status');
+    const fill = document.getElementById('progress-bar-fill');
+    
+    progressContainer.classList.remove('hidden');
+    chartsWrapper.classList.add('hidden');
+    statsContainer.classList.add('hidden');
+    
+    const kMax = 12; // Evaluate up to K=12 for robust elbow
+    const kRange = [];
+    const inertias = [];
+    const silhouettes = [];
+    
+    const dataset = musicData.data.map(d => d.scaled);
+    
+    let currentEvalK = 2;
+    
+    function evalNextStep() {
+        if (currentEvalK > kMax) {
+            progressContainer.classList.add('hidden');
+            chartsWrapper.classList.remove('hidden');
+            statsContainer.classList.remove('hidden');
+            renderEvalCharts(kRange, inertias, silhouettes);
+            return;
+        }
+        
+        statusText.textContent = `Calculating metrics for K=${currentEvalK}...`;
+        fill.style.width = `${((currentEvalK - 1) / (kMax - 1)) * 100}%`;
+        
+        // Use timeout to cede control to main thread so UI updates
+        setTimeout(() => {
+            // 1. Robust 9D Clustering
+            const assign = kmeans(dataset, currentEvalK, 50);
+            
+            // 2. Map dataset to chosen 2D visualization space for evaluation metrics
+            const xIdx = musicData.features.indexOf(xAxisFeature);
+            const yIdx = musicData.features.indexOf(yAxisFeature);
+            const datasetVIS = musicData.data.map(d => [d.scaled[xIdx], d.scaled[yIdx]]);
+            
+            // 3. Compute metrics based on visual projection
+            const inertia = computeInertia(datasetVIS, assign, currentEvalK);
+            const sil = computeSilhouette(datasetVIS, assign, currentEvalK);
+            
+            kRange.push(currentEvalK);
+            inertias.push(inertia);
+            silhouettes.push(sil);
+            
+            currentEvalK++;
+            evalNextStep();
+        }, 50);
+    }
+    
+    evalNextStep();
+}
+
+function renderEvalCharts(kRange, inertias, silhouettes) {
+    const ctxElbow = document.getElementById('elbowChart').getContext('2d');
+    const ctxSil = document.getElementById('silhouetteChart').getContext('2d');
+    
+    if (elbowChartInstance) elbowChartInstance.destroy();
+    if (silhouetteChartInstance) silhouetteChartInstance.destroy();
+    
+    // Find best K based on silhouette peak
+    let bestSil = -Infinity;
+    let bestK = 2;
+    for (let i = 0; i < silhouettes.length; i++) {
+        if (silhouettes[i] > bestSil) {
+            bestSil = silhouettes[i];
+            bestK = kRange[i];
+        }
+    }
+    
+    document.getElementById('stat-best-k').textContent = bestK;
+    document.getElementById('stat-sil-score').textContent = bestSil.toFixed(3);
+    
+    elbowChartInstance = new Chart(ctxElbow, {
+        type: 'line',
+        data: {
+            labels: kRange,
+            datasets: [{
+                label: 'Inertia (Elbow Method)',
+                data: inertias,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#3b82f6',
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Inertia vs. Number of Clusters (K)', color: '#f8fafc', font: { size: 16 } }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'K (Clusters)' } },
+                y: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'Inertia / SSE' } }
+            }
+        }
+    });
+    
+    silhouetteChartInstance = new Chart(ctxSil, {
+        type: 'line',
+        data: {
+            labels: kRange,
+            datasets: [{
+                label: 'Silhouette Score',
+                data: silhouettes,
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#8b5cf6',
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Silhouette Score vs. K', color: '#f8fafc', font: { size: 16 } }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'K (Clusters)' } },
+                y: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'Silhouette Coeff.' } }
             }
         }
     });
