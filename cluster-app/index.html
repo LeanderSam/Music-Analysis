@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 
 <body>
@@ -18,6 +20,12 @@
     </header>
 
     <main>
+        <div class="tabs-wrapper">
+            <button class="tab-btn active" data-tab="2d">2D Explorer</button>
+            <button class="tab-btn" data-tab="3d">3D Explorer</button>
+            <button class="tab-btn" data-tab="songs">Cluster Songs</button>
+        </div>
+
         <div class="dashboard-top">
             <div class="controls">
             <div class="control-group">
@@ -36,27 +44,55 @@
                 <select id="y-axis"></select>
             </div>
 
+            <div class="control-group hidden" id="z-axis-group">
+                <label for="z-axis">Z Axis Feature</label>
+                <select id="z-axis"></select>
+            </div>
+
+            <div class="control-group insight-box hidden" id="insight-box" style="margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom: 0.5rem;">
+                    <span style="font-size:1.2rem;">💡</span>
+                    <span style="font-weight:600; color:#60a5fa; font-size:0.9rem; text-transform:uppercase;">Insight</span>
+                </div>
+                <div id="insight-text" style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.4;">
+                </div>
+                <button id="apply-insight-btn" class="glow-btn hidden" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.8rem; width: 100%;">Apply Recommendation</button>
+            </div>
+
             <div class="control-group" style="margin-top: auto; padding-top: 1rem;">
                 <button id="evaluate-btn" class="glow-btn">
                     <span class="btn-text">Evaluate Cluster Quality</span>
                     <span class="btn-icon">✨</span>
                 </button>
             </div>
-        </div>
+            </div> <!-- end controls -->
 
-        <div class="chart-container">
-            <div id="loader">Initializing Audio Matrix...</div>
-            <canvas id="clusterChart"></canvas>
-        </div>
-        </div>
+            <div class="view-content active" id="view-2d">
+                <div class="chart-container">
+                    <div id="loader">Initializing Audio Matrix...</div>
+                    <canvas id="clusterChart"></canvas>
+                </div>
+                <div class="averages-container">
+                    <h2>Cluster Averages</h2>
+                    <div class="table-wrapper">
+                        <table id="averages-table">
+                            <thead id="averages-head"></thead>
+                            <tbody id="averages-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
-        <div class="averages-container">
-            <h2>Cluster Averages</h2>
-            <div class="table-wrapper">
-                <table id="averages-table">
-                    <thead id="averages-head"></thead>
-                    <tbody id="averages-body"></tbody>
-                </table>
+            <div class="view-content hidden" id="view-3d">
+                <div class="chart-container" style="padding: 0;">
+                    <div id="plotly3d" style="width: 100%; height: 100%; min-height: 600px; border-radius: 20px; overflow: hidden;"></div>
+                </div>
+            </div>
+
+            <div class="view-content hidden" id="view-songs">
+                <div class="songs-list-container" id="songs-list">
+                    <!-- Populated by JS -->
+                </div>
             </div>
         </div>
     </main>

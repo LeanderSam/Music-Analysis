@@ -58,10 +58,58 @@ main {
     flex-direction: column;
     flex: 1;
     padding: 2rem;
-    gap: 2rem;
+    gap: 1.5rem;
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
+}
+
+/* Tabs */
+.tabs-wrapper {
+    display: flex;
+    gap: 1rem;
+    background: var(--bg-panel);
+    padding: 0.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.75rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.5);
+}
+
+.view-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.view-content.hidden {
+    display: none;
 }
 
 .dashboard-top {
@@ -169,6 +217,8 @@ select option {
     box-shadow: 0 20px 40px rgba(0,0,0,0.4);
     position: relative;
     min-height: 500px;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Loading Overlay */
@@ -514,4 +564,56 @@ select option {
 
 #averages-table tbody tr:hover {
     background: rgba(255, 255, 255, 0.05);
+}
+
+/* Songs List View */
+.songs-list-container {
+    background: var(--bg-panel);
+    border-radius: 20px;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-height: 500px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.cluster-song-group {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.cluster-song-group h3 {
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.songs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.song-card {
+    background: rgba(255,255,255,0.03);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent);
+}
+
+.song-card-title {
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+}
+
+.song-card-artist {
+    color: var(--text-muted);
+    font-size: 0.8rem;
 }

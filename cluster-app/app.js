@@ -21,6 +21,8 @@ let chart;
 let currentK = 5;
 let xAxisFeature = 'energy';
 let yAxisFeature = 'danceability';
+let zAxisFeature = 'loudness';
+let currentTab = '2d';
 let currentAssignments = [];
 let elbowChartInstance;
 let silhouetteChartInstance;
@@ -30,6 +32,10 @@ const kDisplay = document.getElementById('k-display');
 const kSlider = document.getElementById('k-slider');
 const xSelect = document.getElementById('x-axis');
 const ySelect = document.getElementById('y-axis');
+const zSelect = document.getElementById('z-axis');
+const zAxisGroup = document.getElementById('z-axis-group');
+const tabBtns = document.querySelectorAll('.tab-btn');
+const views = document.querySelectorAll('.view-content');
 const ctx = document.getElementById('clusterChart').getContext('2d');
 
 function init() {
@@ -42,10 +48,13 @@ function init() {
     musicData.features.forEach(f => {
         let optX = new Option(f, f);
         let optY = new Option(f, f);
+        let optZ = new Option(f, f);
         if (f === xAxisFeature) optX.selected = true;
         if (f === yAxisFeature) optY.selected = true;
+        if (f === zAxisFeature) optZ.selected = true;
         xSelect.add(optX);
         ySelect.add(optY);
+        if(zSelect) zSelect.add(optZ);
     });
     
     // Event Listeners
@@ -61,11 +70,43 @@ function init() {
     xSelect.addEventListener('change', (e) => {
         xAxisFeature = e.target.value;
         updateChartData();
+        triggerPairingSearch('x', xAxisFeature);
     });
     
     ySelect.addEventListener('change', (e) => {
         yAxisFeature = e.target.value;
         updateChartData();
+        triggerPairingSearch('y', yAxisFeature);
+    });
+
+    if (zSelect) {
+        zSelect.addEventListener('change', (e) => {
+            zAxisFeature = e.target.value;
+            updateChartData();
+            if (currentTab === '3d') triggerPairingSearch('z', zAxisFeature);
+        });
+    }
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            views.forEach(v => v.classList.add('hidden'));
+            
+            btn.classList.add('active');
+            currentTab = btn.getAttribute('data-tab');
+            const targetView = document.getElementById(`view-${currentTab}`);
+            if(targetView) targetView.classList.remove('hidden');
+            
+            if (currentTab === '3d') {
+                if(zAxisGroup) zAxisGroup.classList.remove('hidden');
+                triggerPairingSearch('x', xAxisFeature);
+            } else {
+                if(zAxisGroup) zAxisGroup.classList.add('hidden');
+                if (currentTab === '2d') triggerPairingSearch('x', xAxisFeature);
+            }
+            
+            updateChartData();
+        });
     });
     
     const evaluateBtn = document.getElementById('evaluate-btn');
@@ -89,6 +130,7 @@ function init() {
     
     // Initial Calculation
     recalculateClusters();
+    triggerPairingSearch('x', xAxisFeature);
 }
 
 function recalculateClusters() {
@@ -147,6 +189,8 @@ function updateChartData() {
     }
     
     updateAveragesTable();
+    update3DChartData();
+    renderClusterSongs();
 }
 
 function createChart(datasets) {
@@ -270,6 +314,82 @@ function updateAveragesTable() {
     }
     
     body.innerHTML = bodyHTML;
+}
+
+function update3DChartData() {
+    if (!document.getElementById('plotly3d') || typeof Plotly === 'undefined') return;
+    
+    const data = [];
+    for (let c = 0; c < currentK; c++) {
+        data.push({
+            x: [], y: [], z: [], text: [],
+            mode: 'markers',
+            type: 'scatter3d',
+            name: `Cluster ${c + 1}`,
+            marker: {
+                size: 4,
+                color: CLUSTER_COLORS[c % CLUSTER_COLORS.length].replace('0.8', '1')
+            }
+        });
+    }
+    
+    for (let i = 0; i < musicData.data.length; i++) {
+        const item = musicData.data[i];
+        const clusterIdx = currentAssignments[i];
+        if (clusterIdx !== undefined && data[clusterIdx]) {
+            data[clusterIdx].x.push(item.original[xAxisFeature]);
+            data[clusterIdx].y.push(item.original[yAxisFeature]);
+            data[clusterIdx].z.push(item.original[zAxisFeature]);
+            data[clusterIdx].text.push(`${item.name} - ${item.artist}`);
+        }
+    }
+    
+    const layout = {
+        margin: { l: 0, r: 0, b: 0, t: 0 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        scene: {
+            xaxis: { title: xAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            yaxis: { title: yAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            zaxis: { title: zAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            bgcolor: 'transparent'
+        },
+        font: { color: '#f8fafc', family: 'Inter' },
+        legend: { font: { color: '#f8fafc' }, y: 0.5 }
+    };
+    
+    Plotly.react('plotly3d', data, layout, {responsive: true});
+}
+
+function renderClusterSongs() {
+    const container = document.getElementById('songs-list');
+    if (!container) return;
+    
+    let html = '';
+    for (let c = 0; c < currentK; c++) {
+        const color = CLUSTER_COLORS[c % CLUSTER_COLORS.length];
+        
+        const songs = [];
+        for (let i = 0; i < musicData.data.length; i++) {
+            if (currentAssignments[i] === c) songs.push(musicData.data[i]);
+        }
+        
+        const sample = songs.slice(0, 15);
+        
+        html += `<div class="cluster-song-group" style="border-color: ${color}">`;
+        html += `<h3 style="color: ${color}">Cluster ${c + 1} (${songs.length} songs)</h3>`;
+        html += `<div class="songs-grid">`;
+        
+        sample.forEach(s => {
+            html += `<div class="song-card" style="border-left-color: ${color}">
+                <div class="song-card-title">${s.name}</div>
+                <div class="song-card-artist">${s.artist}</div>
+            </div>`;
+        });
+        
+        html += `</div></div>`;
+    }
+    container.innerHTML = html;
 }
 
 function runEvaluation() {
@@ -415,3 +535,122 @@ function renderEvalCharts(kRange, inertias, silhouettes) {
 
 // Start
 document.addEventListener('DOMContentLoaded', init);
+
+let currentSearchId = 0;
+
+function triggerPairingSearch(fixedAxis, fixedFeature) {
+    const box = document.getElementById('insight-box');
+    const text = document.getElementById('insight-text');
+    const btn = document.getElementById('apply-insight-btn');
+    
+    if(!box || !musicData || !musicData.data) return;
+    
+    box.classList.remove('hidden');
+    btn.classList.add('hidden');
+    
+    const is3D = currentTab === '3d';
+    text.innerHTML = `Analyzing optimal ${is3D ? '3D' : '2D'} combinations... <span style="display:inline-block; width:12px; height:12px; border:2px solid #3b82f6; border-top:2px solid transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>`;
+    
+    currentSearchId++;
+    const searchId = currentSearchId;
+    
+    const candidates = musicData.features.filter(f => f !== fixedFeature);
+    const kRange = [2, 3, 4, 5, 6, 7, 8, 9, 10]; // Reduced to 10 for performance
+    
+    let bestScore = -Infinity;
+    let bestFeature = '';
+    let bestFeatureA = '';
+    let bestFeatureB = '';
+    let bestK = 2;
+    
+    let kIdx = 0;
+    const dataset9D = musicData.data.map(d => d.scaled);
+    const fixedIdx = musicData.features.indexOf(fixedFeature);
+    
+    const pairs = [];
+    if (is3D) {
+        for (let i=0; i<candidates.length; i++) {
+            for (let j=i+1; j<candidates.length; j++) {
+                pairs.push([candidates[i], candidates[j]]);
+            }
+        }
+    }
+    
+    function nextK() {
+        if (searchId !== currentSearchId) return;
+        
+        if (kIdx >= kRange.length) {
+            if (is3D) {
+                text.innerHTML = `For <b>${fixedFeature}</b>, the best 3D combination is <b>${bestFeatureA} & ${bestFeatureB}</b><br>K = ${bestK} | Silhouette = ${bestScore.toFixed(3)}`;
+            } else {
+                text.innerHTML = `For <b>${fixedFeature}</b>, the best 2D combination is <b>${bestFeature}</b><br>K = ${bestK} | Silhouette = ${bestScore.toFixed(3)}`;
+            }
+            btn.classList.remove('hidden');
+            btn.onclick = () => {
+                if (is3D) {
+                    if (fixedAxis === 'x') { ySelect.value = bestFeatureA; yAxisFeature = bestFeatureA; zSelect.value = bestFeatureB; zAxisFeature = bestFeatureB; }
+                    else if (fixedAxis === 'y') { xSelect.value = bestFeatureA; xAxisFeature = bestFeatureA; zSelect.value = bestFeatureB; zAxisFeature = bestFeatureB; }
+                    else { xSelect.value = bestFeatureA; xAxisFeature = bestFeatureA; ySelect.value = bestFeatureB; yAxisFeature = bestFeatureB; }
+                } else {
+                    if (fixedAxis === 'x') { ySelect.value = bestFeature; yAxisFeature = bestFeature; } 
+                    else { xSelect.value = bestFeature; xAxisFeature = bestFeature; }
+                }
+                kSlider.value = bestK;
+                currentK = bestK;
+                kDisplay.textContent = currentK;
+                recalculateClusters();
+            };
+            return;
+        }
+        
+        const testK = kRange[kIdx];
+        
+        setTimeout(() => {
+            if (searchId !== currentSearchId) return;
+            
+            const assign = kmeans(dataset9D, testK, 50);
+            
+            if (is3D) {
+                for (let c = 0; c < pairs.length; c++) {
+                    const [featA, featB] = pairs[c];
+                    const idxA = musicData.features.indexOf(featA);
+                    const idxB = musicData.features.indexOf(featB);
+                    
+                    const datasetVIS = musicData.data.map(d => [d.scaled[fixedIdx], d.scaled[idxA], d.scaled[idxB]]);
+                    
+                    const sil = computeSilhouette(datasetVIS, assign, testK);
+                    if (sil > bestScore) {
+                        bestScore = sil;
+                        bestFeatureA = featA;
+                        bestFeatureB = featB;
+                        bestK = testK;
+                    }
+                }
+            } else {
+                for (let c = 0; c < candidates.length; c++) {
+                    const candFeat = candidates[c];
+                    const candIdx = musicData.features.indexOf(candFeat);
+                    
+                    const datasetVIS = musicData.data.map(d => {
+                        return fixedAxis === 'x' 
+                            ? [d.scaled[fixedIdx], d.scaled[candIdx]]
+                            : [d.scaled[candIdx], d.scaled[fixedIdx]];
+                    });
+                    
+                    const sil = computeSilhouette(datasetVIS, assign, testK);
+                    if (sil > bestScore) {
+                        bestScore = sil;
+                        bestFeature = candFeat;
+                        bestK = testK;
+                    }
+                }
+            }
+            
+            kIdx++;
+            nextK();
+        }, 10);
+    }
+    
+    nextK();
+}
+
