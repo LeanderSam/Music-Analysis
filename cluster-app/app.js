@@ -145,6 +145,8 @@ function updateChartData() {
     } else {
         createChart(datasets);
     }
+    
+    updateAveragesTable();
 }
 
 function createChart(datasets) {
@@ -219,6 +221,55 @@ function createChart(datasets) {
             }
         }
     });
+}
+
+function updateAveragesTable() {
+    const head = document.getElementById('averages-head');
+    const body = document.getElementById('averages-body');
+    
+    if (!head || !body) return;
+    
+    // Create headers
+    let headHTML = '<tr><th>Cluster</th>';
+    musicData.features.forEach(f => {
+        headHTML += `<th>${f}</th>`;
+    });
+    headHTML += '</tr>';
+    head.innerHTML = headHTML;
+    
+    // Calculate averages
+    const clusterStats = Array.from({length: currentK}, () => {
+        const obj = {};
+        musicData.features.forEach(f => obj[f] = 0);
+        return { count: 0, sums: obj };
+    });
+    
+    for (let i = 0; i < musicData.data.length; i++) {
+        const item = musicData.data[i];
+        const clusterIdx = currentAssignments[i];
+        if (clusterIdx !== undefined && clusterStats[clusterIdx]) {
+            clusterStats[clusterIdx].count++;
+            musicData.features.forEach(f => {
+                clusterStats[clusterIdx].sums[f] += item.original[f];
+            });
+        }
+    }
+    
+    // Create rows
+    let bodyHTML = '';
+    for (let c = 0; c < currentK; c++) {
+        const color = CLUSTER_COLORS[c % CLUSTER_COLORS.length];
+        bodyHTML += `<tr>
+            <td style="font-weight: bold; color: ${color}">Cluster ${c + 1} (${clusterStats[c].count})</td>`;
+        
+        musicData.features.forEach(f => {
+            const avg = clusterStats[c].count === 0 ? 0 : clusterStats[c].sums[f] / clusterStats[c].count;
+            bodyHTML += `<td>${avg.toFixed(3)}</td>`;
+        });
+        bodyHTML += `</tr>`;
+    }
+    
+    body.innerHTML = bodyHTML;
 }
 
 function runEvaluation() {

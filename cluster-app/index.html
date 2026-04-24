@@ -18,7 +18,8 @@
     </header>
 
     <main>
-        <div class="controls">
+        <div class="dashboard-top">
+            <div class="controls">
             <div class="control-group">
                 <label for="k-slider">Number of Clusters (k)</label>
                 <div class="k-value-display" id="k-display">5</div>
@@ -46,6 +47,17 @@
         <div class="chart-container">
             <div id="loader">Initializing Audio Matrix...</div>
             <canvas id="clusterChart"></canvas>
+        </div>
+        </div>
+
+        <div class="averages-container">
+            <h2>Cluster Averages</h2>
+            <div class="table-wrapper">
+                <table id="averages-table">
+                    <thead id="averages-head"></thead>
+                    <tbody id="averages-body"></tbody>
+                </table>
+            </div>
         </div>
     </main>
 

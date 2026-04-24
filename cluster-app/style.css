@@ -55,11 +55,18 @@ header p {
 
 main {
     display: flex;
+    flex-direction: column;
     flex: 1;
     padding: 2rem;
     gap: 2rem;
     max-width: 1400px;
     margin: 0 auto;
+    width: 100%;
+}
+
+.dashboard-top {
+    display: flex;
+    gap: 2rem;
     width: 100%;
 }
 
@@ -178,7 +185,7 @@ select option {
 }
 
 @media (max-width: 900px) {
-    main {
+    .dashboard-top {
         flex-direction: column;
     }
     .controls {
@@ -455,4 +462,56 @@ select option {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
+}
+
+/* Cluster Averages Table */
+.averages-container {
+    background: var(--bg-panel);
+    border-radius: 20px;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.averages-container h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 1.5rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+#averages-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+#averages-table th, #averages-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+#averages-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    background: rgba(0,0,0,0.2);
+}
+
+#averages-table tbody tr {
+    transition: background-color 0.2s;
+}
+
+#averages-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
