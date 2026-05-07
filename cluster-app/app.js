@@ -34,7 +34,7 @@ const xSelect = document.getElementById('x-axis');
 const ySelect = document.getElementById('y-axis');
 const zSelect = document.getElementById('z-axis');
 const zAxisGroup = document.getElementById('z-axis-group');
-const tabBtns = document.querySelectorAll('.tab-btn');
+const tabBtns = document.querySelectorAll('.nav-btn');
 const views = document.querySelectorAll('.view-content');
 const ctx = document.getElementById('clusterChart').getContext('2d');
 
@@ -70,20 +70,17 @@ function init() {
     xSelect.addEventListener('change', (e) => {
         xAxisFeature = e.target.value;
         updateChartData();
-        triggerPairingSearch('x', xAxisFeature);
     });
     
     ySelect.addEventListener('change', (e) => {
         yAxisFeature = e.target.value;
         updateChartData();
-        triggerPairingSearch('y', yAxisFeature);
     });
 
     if (zSelect) {
         zSelect.addEventListener('change', (e) => {
             zAxisFeature = e.target.value;
             updateChartData();
-            if (currentTab === '3d') triggerPairingSearch('z', zAxisFeature);
         });
     }
 
@@ -97,17 +94,41 @@ function init() {
             const targetView = document.getElementById(`view-${currentTab}`);
             if(targetView) targetView.classList.remove('hidden');
             
-            if (currentTab === '3d') {
-                if(zAxisGroup) zAxisGroup.classList.remove('hidden');
-                triggerPairingSearch('x', xAxisFeature);
-            } else {
-                if(zAxisGroup) zAxisGroup.classList.add('hidden');
-                if (currentTab === '2d') triggerPairingSearch('x', xAxisFeature);
-            }
+            const sidebarControls = document.getElementById('sidebar-controls');
+            const sharedSongs = document.getElementById('shared-songs-container');
             
-            updateChartData();
+            if (currentTab === 'about') {
+                if(sidebarControls) sidebarControls.style.display = 'none';
+                if(sharedSongs) sharedSongs.classList.add('hidden');
+            } else {
+                if(sidebarControls) sidebarControls.style.display = 'flex';
+                if(sharedSongs) sharedSongs.classList.remove('hidden');
+                
+                if (currentTab === '3d') {
+                    if(zAxisGroup) zAxisGroup.classList.remove('hidden');
+                } else {
+                    if(zAxisGroup) zAxisGroup.classList.add('hidden');
+                }
+                
+                updateChartData();
+            }
         });
     });
+
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar');
+    const mainSidebar = document.getElementById('main-sidebar');
+    if (toggleSidebarBtn && mainSidebar) {
+        toggleSidebarBtn.addEventListener('click', () => {
+            mainSidebar.classList.toggle('collapsed');
+            // Redraw charts after transition to ensure correct resizing
+            setTimeout(() => {
+                if (currentTab === '2d' && chart) chart.resize();
+                if (currentTab === '3d' && document.getElementById('plotly3d')) {
+                    Plotly.Plots.resize(document.getElementById('plotly3d'));
+                }
+            }, 300);
+        });
+    }
     
     const evaluateBtn = document.getElementById('evaluate-btn');
     const closeModalBtn = document.getElementById('close-modal');
@@ -128,9 +149,15 @@ function init() {
     
     loader.style.opacity = '0';
     
+    const analyzeInsightBtn = document.getElementById('analyze-insight-btn');
+    if (analyzeInsightBtn) {
+        analyzeInsightBtn.addEventListener('click', () => {
+            triggerPairingSearch('x', xAxisFeature);
+        });
+    }
+
     // Initial Calculation
     recalculateClusters();
-    triggerPairingSearch('x', xAxisFeature);
 }
 
 function recalculateClusters() {
@@ -381,15 +408,72 @@ function renderClusterSongs() {
         html += `<div class="songs-grid">`;
         
         sample.forEach(s => {
+            const originalIndex = musicData.data.indexOf(s);
             html += `<div class="song-card" style="border-left-color: ${color}">
                 <div class="song-card-title">${s.name}</div>
                 <div class="song-card-artist">${s.artist}</div>
+                <button class="find-similar-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin-top: 0.5rem; border-radius: 6px; width: 100%;" onclick="findSimilarSong(${originalIndex})">Find Similar</button>
             </div>`;
         });
         
         html += `</div></div>`;
     }
     container.innerHTML = html;
+}
+
+function findSimilarSong(targetIndex) {
+    if (targetIndex < 0 || targetIndex >= musicData.data.length) return;
+    
+    const targetSong = musicData.data[targetIndex];
+    const is3D = currentTab === '3d';
+    
+    const xIdx = musicData.features.indexOf(xAxisFeature);
+    const yIdx = musicData.features.indexOf(yAxisFeature);
+    const zIdx = is3D ? musicData.features.indexOf(zAxisFeature) : -1;
+    
+    let bestDist = Infinity;
+    let closestIndex = -1;
+    
+    for (let i = 0; i < musicData.data.length; i++) {
+        if (i === targetIndex) continue;
+        
+        const candidate = musicData.data[i];
+        if (candidate.name === targetSong.name && candidate.artist === targetSong.artist) continue;
+        
+        let distSq = 0;
+        
+        distSq += Math.pow(targetSong.scaled[xIdx] - candidate.scaled[xIdx], 2);
+        distSq += Math.pow(targetSong.scaled[yIdx] - candidate.scaled[yIdx], 2);
+        if (is3D) {
+            distSq += Math.pow(targetSong.scaled[zIdx] - candidate.scaled[zIdx], 2);
+        }
+        
+        if (distSq < bestDist) {
+            bestDist = distSq;
+            closestIndex = i;
+        }
+    }
+    
+    if (closestIndex !== -1) {
+        const closestSong = musicData.data[closestIndex];
+        showRecommendationToast(closestSong);
+    }
+}
+
+function showRecommendationToast(song) {
+    const container = document.getElementById('toast-container');
+    const msg = document.getElementById('toast-message');
+    if (!container || !msg) return;
+    
+    msg.textContent = `${song.name} by ${song.artist}`;
+    container.classList.remove('hidden');
+    
+    const closeBtn = document.getElementById('close-toast');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            container.classList.add('hidden');
+        };
+    }
 }
 
 function runEvaluation() {
@@ -542,11 +626,14 @@ function triggerPairingSearch(fixedAxis, fixedFeature) {
     const box = document.getElementById('insight-box');
     const text = document.getElementById('insight-text');
     const btn = document.getElementById('apply-insight-btn');
+    const analyzeBtn = document.getElementById('analyze-insight-btn');
     
     if(!box || !musicData || !musicData.data) return;
     
     box.classList.remove('hidden');
+    text.classList.remove('hidden');
     btn.classList.add('hidden');
+    if (analyzeBtn) analyzeBtn.classList.add('hidden');
     
     const is3D = currentTab === '3d';
     text.innerHTML = `Analyzing optimal ${is3D ? '3D' : '2D'} combinations... <span style="display:inline-block; width:12px; height:12px; border:2px solid #3b82f6; border-top:2px solid transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>`;
@@ -586,6 +673,7 @@ function triggerPairingSearch(fixedAxis, fixedFeature) {
                 text.innerHTML = `For <b>${fixedFeature}</b>, the best 2D combination is <b>${bestFeature}</b><br>K = ${bestK} | Silhouette = ${bestScore.toFixed(3)}`;
             }
             btn.classList.remove('hidden');
+            if (analyzeBtn) analyzeBtn.classList.remove('hidden');
             btn.onclick = () => {
                 if (is3D) {
                     if (fixedAxis === 'x') { ySelect.value = bestFeatureA; yAxisFeature = bestFeatureA; zSelect.value = bestFeatureB; zAxisFeature = bestFeatureB; }

@@ -127,9 +127,9 @@ function computeInertia(data, assignments, k) {
 
 /**
  * Computes the mean Silhouette Coefficient of all samples.
- * O(N^2) implementation.
+ * O(N^2) implementation. Optimized with subsampling for large datasets.
  */
-function computeSilhouette(data, assignments, k) {
+function computeSilhouette(data, assignments, k, maxSamples = 500) {
     if (k <= 1 || k >= data.length) return 0;
     
     let clusters = Array.from({ length: k }, () => []);
@@ -137,9 +137,24 @@ function computeSilhouette(data, assignments, k) {
         clusters[assignments[i]].push(i);
     }
     
+    let indicesToEvaluate = [];
+    if (data.length > maxSamples) {
+        let seen = new Set();
+        while (indicesToEvaluate.length < maxSamples) {
+            let idx = Math.floor(Math.random() * data.length);
+            if (!seen.has(idx)) {
+                seen.add(idx);
+                indicesToEvaluate.push(idx);
+            }
+        }
+    } else {
+        for(let i = 0; i < data.length; i++) indicesToEvaluate.push(i);
+    }
+    
     let totalSilhouette = 0;
     
-    for (let i = 0; i < data.length; i++) {
+    for (let evalIdx = 0; evalIdx < indicesToEvaluate.length; evalIdx++) {
+        let i = indicesToEvaluate[evalIdx];
         let a_i = 0;
         let myCluster = assignments[i];
         let myClusterPts = clusters[myCluster];
@@ -191,5 +206,5 @@ function computeSilhouette(data, assignments, k) {
         totalSilhouette += s_i;
     }
     
-    return totalSilhouette / data.length;
+    return totalSilhouette / indicesToEvaluate.length;
 }

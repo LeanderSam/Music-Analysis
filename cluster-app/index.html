@@ -14,20 +14,23 @@
 </head>
 
 <body>
-    <header>
-        <h1>Symphony</h1>
-        <p>Interactive Music Feature Clustering</p>
-    </header>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="main-sidebar">
+            <div class="sidebar-header">
+                <h2>Symphony</h2>
+                <button id="toggle-sidebar" class="icon-btn">☰</button>
+            </div>
 
-    <main>
-        <div class="tabs-wrapper">
-            <button class="tab-btn active" data-tab="2d">2D Explorer</button>
-            <button class="tab-btn" data-tab="3d">3D Explorer</button>
-            <button class="tab-btn" data-tab="songs">Cluster Songs</button>
-        </div>
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-tab="2d">2D Explorer</button>
+                <button class="nav-btn" data-tab="3d">3D Explorer</button>
+                <button class="nav-btn" data-tab="about">About This App</button>
+            </nav>
+        </aside>
 
-        <div class="dashboard-top">
-            <div class="controls">
+        <!-- Controls panel always visible when not in About -->
+        <div class="controls" id="sidebar-controls">
             <div class="control-group">
                 <label for="k-slider">Number of Clusters (k)</label>
                 <div class="k-value-display" id="k-display">5</div>
@@ -49,14 +52,21 @@
                 <select id="z-axis"></select>
             </div>
 
-            <div class="control-group insight-box hidden" id="insight-box" style="margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
+            <div class="control-group insight-box" id="insight-box"
+                style="margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
                 <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom: 0.5rem;">
                     <span style="font-size:1.2rem;">💡</span>
-                    <span style="font-weight:600; color:#60a5fa; font-size:0.9rem; text-transform:uppercase;">Insight</span>
+                    <span
+                        style="font-weight:600; color:#60a5fa; font-size:0.9rem; text-transform:uppercase;">Insight</span>
                 </div>
-                <div id="insight-text" style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.4;">
+                <button id="analyze-insight-btn" class="glow-btn"
+                    style="padding: 0.5rem; font-size: 0.8rem; width: 100%;">Analyze Best Combinations</button>
+                <div id="insight-text" class="hidden"
+                    style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.4; margin-top: 0.5rem;">
                 </div>
-                <button id="apply-insight-btn" class="glow-btn hidden" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.8rem; width: 100%;">Apply Recommendation</button>
+                <button id="apply-insight-btn" class="glow-btn hidden"
+                    style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.8rem; width: 100%;">Apply
+                    Recommendation</button>
             </div>
 
             <div class="control-group" style="margin-top: auto; padding-top: 1rem;">
@@ -65,8 +75,10 @@
                     <span class="btn-icon">✨</span>
                 </button>
             </div>
-            </div> <!-- end controls -->
+        </div>
 
+        <!-- Main Content -->
+        <main class="main-content">
             <div class="view-content active" id="view-2d">
                 <div class="chart-container">
                     <div id="loader">Initializing Audio Matrix...</div>
@@ -84,18 +96,42 @@
             </div>
 
             <div class="view-content hidden" id="view-3d">
-                <div class="chart-container" style="padding: 0;">
-                    <div id="plotly3d" style="width: 100%; height: 100%; min-height: 600px; border-radius: 20px; overflow: hidden;"></div>
+                <div class="chart-container" style="padding: 0; min-height: 80vh;">
+                    <div id="plotly3d" style="width: 100%; height: 100%; border-radius: 20px; overflow: hidden;"></div>
                 </div>
             </div>
 
-            <div class="view-content hidden" id="view-songs">
+            <div class="view-content hidden" id="view-about">
+                <div class="about-container">
+                    <h2>About Symphony</h2>
+                    <p>Symphony is an interactive music exploration tool that uses Unsupervised Machine Learning to
+                        discover patterns in audio data.</p>
+                    <p>Using K-Means clustering, the app groups songs based on acoustic features like Danceability,
+                        Energy, and Loudness. You can dynamically adjust the number of clusters (K) and select different
+                        features for the axes to see how songs relate to each other in multi-dimensional space. Rasel is
+                        gonna win the Smash Karts tournament, this is the most certain prediction I can make</p>
+                </div>
+            </div>
+
+            <div class="shared-bottom hidden" id="shared-songs-container">
                 <div class="songs-list-container" id="songs-list">
                     <!-- Populated by JS -->
                 </div>
             </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="toast-container hidden">
+        <div class="toast-content">
+            <span class="toast-icon">🎵</span>
+            <div class="toast-text">
+                <strong>Closest Song:</strong>
+                <span id="toast-message">Loading...</span>
+            </div>
+            <button id="close-toast" class="icon-btn">&times;</button>
         </div>
-    </main>
+    </div>
 
     <!-- Evaluation Modal -->
     <div id="eval-modal" class="modal-overlay hidden">
