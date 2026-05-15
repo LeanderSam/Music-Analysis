@@ -22,7 +22,7 @@ let currentK = 5;
 let xAxisFeature = 'energy';
 let yAxisFeature = 'danceability';
 let zAxisFeature = 'loudness';
-let currentTab = '2d';
+let currentTab = 'home';
 let currentAssignments = [];
 let elbowChartInstance;
 let silhouetteChartInstance;
@@ -97,7 +97,7 @@ function init() {
             const sidebarControls = document.getElementById('sidebar-controls');
             const sharedSongs = document.getElementById('shared-songs-container');
             
-            if (currentTab === 'about') {
+            if (currentTab === 'about' || currentTab === 'home') {
                 if(sidebarControls) sidebarControls.style.display = 'none';
                 if(sharedSongs) sharedSongs.classList.add('hidden');
             } else {
@@ -138,6 +138,14 @@ function init() {
         evaluateBtn.addEventListener('click', () => {
             evalModal.classList.remove('hidden');
             runEvaluation();
+        });
+    }
+
+    const startClusteringBtn = document.getElementById('start-clustering-btn');
+    if (startClusteringBtn) {
+        startClusteringBtn.addEventListener('click', () => {
+            const tab2d = document.querySelector('.nav-btn[data-tab="2d"]');
+            if (tab2d) tab2d.click();
         });
     }
     
