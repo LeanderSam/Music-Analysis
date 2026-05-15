@@ -114,6 +114,16 @@ body {
     transition: all 0.3s;
     white-space: nowrap;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-icon {
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .nav-btn:hover {
@@ -129,15 +139,11 @@ body {
 
 .sidebar.collapsed .nav-btn {
     padding: 0.75rem;
-    text-align: center;
-    color: transparent;
+    justify-content: center;
 }
-.sidebar.collapsed .nav-btn::first-letter {
-    color: var(--text-muted);
-    font-size: 1.2rem;
-}
-.sidebar.collapsed .nav-btn.active::first-letter {
-    color: var(--accent);
+
+.sidebar.collapsed .nav-text {
+    display: none;
 }
 
 .controls {
@@ -259,6 +265,12 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+
+.control-group.hidden,
+#insight-text.hidden,
+.glow-btn.hidden {
+    display: none !important;
 }
 
 .control-group label {
