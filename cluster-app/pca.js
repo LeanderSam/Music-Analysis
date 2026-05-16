@@ -51,14 +51,19 @@ function computePCA(dataMatrix, numComponents = 3) {
     
     for (let k = 0; k < numComponents; k++) {
         // Initialize random vector
-        let vec = new Array(numCols).fill(1.0);
-        let norm = Math.sqrt(numCols);
+        let vec = new Array(numCols);
+        let sqSumInit = 0;
+        for (let i = 0; i < numCols; i++) {
+            vec[i] = Math.random() - 0.5;
+            sqSumInit += vec[i] * vec[i];
+        }
+        let norm = Math.sqrt(sqSumInit);
         for (let i = 0; i < numCols; i++) vec[i] /= norm;
         
         let prevVec = new Array(numCols).fill(0);
         
         // Iterate
-        for (let iter = 0; iter < 100; iter++) {
+        for (let iter = 0; iter < 1000; iter++) {
             const nextVec = new Array(numCols).fill(0);
             for (let i = 0; i < numCols; i++) {
                 for (let j = 0; j < numCols; j++) {
@@ -70,6 +75,7 @@ function computePCA(dataMatrix, numComponents = 3) {
             let sqSum = 0;
             for (let i = 0; i < numCols; i++) sqSum += nextVec[i] * nextVec[i];
             const nextNorm = Math.sqrt(sqSum);
+            if (nextNorm === 0) break;
             for (let i = 0; i < numCols; i++) nextVec[i] /= nextNorm;
             
             // Check convergence
