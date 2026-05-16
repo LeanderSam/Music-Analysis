@@ -6,7 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Symphony | Unsupervised Clustering Explorer</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Plotly.js -->
@@ -14,28 +18,34 @@
 </head>
 
 <body>
+    <div class="bg-animation"></div>
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar collapsed" id="main-sidebar">
             <div class="sidebar-header">
-                <h2>Symphony</h2>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="equalizer">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                    <h2>Symphony</h2>
+                </div>
                 <button id="toggle-sidebar" class="icon-btn">☰</button>
             </div>
 
             <nav class="sidebar-nav">
-                <button class="nav-btn active" data-tab="home">
+                <button class="nav-btn active" data-tab="home" data-tooltip="Home">
                     <span class="nav-icon">🏠</span>
                     <span class="nav-text">Home</span>
                 </button>
-                <button class="nav-btn" data-tab="2d">
+                <button class="nav-btn" data-tab="2d" data-tooltip="2D Explorer">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">2D Explorer</span>
                 </button>
-                <button class="nav-btn" data-tab="3d">
+                <button class="nav-btn" data-tab="3d" data-tooltip="3D Explorer">
                     <span class="nav-icon">🧊</span>
                     <span class="nav-text">3D Explorer</span>
                 </button>
-                <button class="nav-btn" data-tab="about">
+                <button class="nav-btn" data-tab="about" data-tooltip="About">
                     <span class="nav-icon">ℹ️</span>
                     <span class="nav-text">About This App</span>
                 </button>
@@ -50,19 +60,44 @@
                 <input type="range" id="k-slider" min="2" max="15" value="5" step="1">
             </div>
 
-            <div class="control-group" style="margin-top: 1rem;">
-                <label for="x-axis">X Axis Feature</label>
-                <select id="x-axis"></select>
+            <div class="algo-toggle-wrapper">
+                <div class="algo-toggle">
+                    <button id="btn-kmeans" class="algo-btn active">K-Means</button>
+                    <button id="btn-pca" class="algo-btn">PCA</button>
+                    <div class="algo-indicator"></div>
+                </div>
             </div>
 
-            <div class="control-group">
-                <label for="y-axis">Y Axis Feature</label>
-                <select id="y-axis"></select>
+            <div class="axis-controls-wrapper" id="axis-controls">
+                <div class="control-group" style="margin-top: 0.5rem;">
+                    <label for="x-axis">X Axis Feature</label>
+                    <select id="x-axis"></select>
+                </div>
+
+                <div class="control-group" style="margin-top: 1rem;">
+                    <label for="y-axis">Y Axis Feature</label>
+                    <select id="y-axis"></select>
+                </div>
+
+                <div class="control-group hidden" id="z-axis-group" style="margin-top: 1rem;">
+                    <label for="z-axis">Z Axis Feature</label>
+                    <select id="z-axis"></select>
+                </div>
             </div>
 
-            <div class="control-group hidden" id="z-axis-group">
-                <label for="z-axis">Z Axis Feature</label>
-                <select id="z-axis"></select>
+            <div class="control-group pca-insight-box hidden" id="pca-insights-box"
+                style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3);">
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom: 0.5rem;">
+                    <span style="font-size:1.2rem;">✨</span>
+                    <span style="font-weight:600; color:#c084fc; font-size:0.9rem; text-transform:uppercase;">PCA
+                        Insights</span>
+                </div>
+                <div id="pca-variance-text"
+                    style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.4; margin-top: 0.5rem;">
+                </div>
+                <div id="pca-loadings-text"
+                    style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.4; margin-top: 0.75rem;">
+                </div>
             </div>
 
             <div class="control-group insight-box" id="insight-box"
@@ -95,17 +130,24 @@
             <div class="view-content active" id="view-home">
                 <div class="home-container">
                     <div class="home-content">
-                        <h1 class="home-title">Symphony</h1>
-                        <p class="home-subtitle">Uncover hidden patterns in your music through unsupervised machine learning.</p>
+                        <div
+                            style="display:flex; justify-content:center; align-items:flex-end; gap:1rem; margin-bottom:1rem;">
+                            <h1 class="home-title" style="margin-bottom:0;">Symphony</h1>
+                            <div class="equalizer large" style="margin-bottom: 1rem;">
+                                <span></span><span></span><span></span><span></span>
+                            </div>
+                        </div>
+                        <p class="home-subtitle">Uncover hidden patterns in your music through unsupervised machine
+                            learning.</p>
                         <button id="start-clustering-btn" class="glow-btn btn-large">Start Clustering</button>
                     </div>
-                    
+
                     <footer class="home-footer">
                         <div class="footer-links">
-                            <a href="#">About Us</a>
-                            <a href="#">Features</a>
-                            <a href="#">Privacy Policy</a>
-                            <a href="#">Contact</a>
+                            <a href="#" id="footer-about-link">About Us</a>
+                            <a href="#" id="footer-features-link">Features</a>
+                            <a href="#" id="footer-privacy-link">Privacy Policy</a>
+                            <a href="#" id="footer-contact-link">Contact</a>
                         </div>
                         <p>&copy; 2026 Symphony Analysis. All rights reserved.</p>
                     </footer>
@@ -139,10 +181,48 @@
                     <h2>About Symphony</h2>
                     <p>Symphony is an interactive music exploration tool that uses Unsupervised Machine Learning to
                         discover patterns in audio data.</p>
-                    <p>Using K-Means clustering, the app groups songs based on acoustic features like Danceability,
-                        Energy, and Loudness. You can dynamically adjust the number of clusters (K) and select different
-                        features for the axes to see how songs relate to each other in multi-dimensional space. Rasel is
-                        gonna win the Smash Karts tournament, this is the most certain prediction I can make</p>
+                    <p>Using K-Means clustering, the app groups songs based on acoustic features like
+                        Danceability,Energy, and Loudness. You can dynamically adjust the number of clusters (K) and
+                        select different features for the axes to see how songs relate to each other in
+                        multi-dimensional space. It was developed by the "THE GOATS" team in 2026. Only 1% share of the
+                        company is public, the rest is owned by the "THE GOATS" team.</p>
+                </div>
+            </div>
+
+            <!-- EASTER EGG VIEWS -->
+            <div class="view-content hidden" id="view-privacy">
+                <div class="easter-egg-container">
+                    <h2 class="easter-egg-title">Privacy Policy</h2>
+                    <p class="easter-egg-text" style="font-size: 1.5rem; text-align: center; margin-top: 2rem;">
+                        By clicking on "I Agree" you agree to give us a 20 in this Project.
+                    </p>
+                    <div style="display:flex; justify-content:center; margin-top: 3rem;">
+                        <button class="glow-btn btn-large"
+                            onclick="document.querySelector('.nav-btn[data-tab=\'home\']').click()">I Agree</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="view-content hidden" id="view-contact">
+                <div class="easter-egg-container" style="max-width: 500px; margin: 0 auto;">
+                    <h2 class="easter-egg-title" style="text-align: center; margin-bottom: 2rem;">Contact Us</h2>
+                    <form class="contact-form" style="display:flex; flex-direction:column; gap:1.5rem;"
+                        onsubmit="event.preventDefault(); alert('Message successfully ignored!'); document.querySelector('.nav-btn[data-tab=\'home\']').click();">
+                        <div class="form-group">
+                            <input type="text" placeholder="Name" required class="contact-input"
+                                style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-family:'Outfit',sans-serif;">
+                        </div>
+                        <div class="form-group">
+                            <input type="email" placeholder="Email" required class="contact-input"
+                                style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-family:'Outfit',sans-serif;">
+                        </div>
+                        <div class="form-group">
+                            <textarea placeholder="Message (We'll definitely never read it)" required
+                                class="contact-input" rows="5"
+                                style="width:100%; padding:1rem; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); color:#fff; font-family:'Outfit',sans-serif; resize:vertical;"></textarea>
+                        </div>
+                        <button type="submit" class="glow-btn btn-large" style="width: 100%;">Send Message</button>
+                    </form>
                 </div>
             </div>
 
@@ -207,6 +287,7 @@
     <script src="data.js"></script>
 
     <!-- Scripts -->
+    <script src="pca.js"></script>
     <script src="kmeans.js"></script>
     <script src="app.js"></script>
 </body>

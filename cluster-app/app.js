@@ -1,20 +1,20 @@
 // Palette for up to 15 clusters
 const CLUSTER_COLORS = [
-    'rgba(59, 130, 246, 0.8)',   // blue
-    'rgba(139, 92, 246, 0.8)',   // purple
-    'rgba(236, 72, 153, 0.8)',   // pink
-    'rgba(16, 185, 129, 0.8)',   // green
-    'rgba(245, 158, 11, 0.8)',   // yellow
-    'rgba(239, 68, 68, 0.8)',    // red
-    'rgba(6, 182, 212, 0.8)',    // cyan
-    'rgba(249, 115, 22, 0.8)',   // orange
-    'rgba(217, 70, 239, 0.8)',   // fuchsia
-    'rgba(132, 204, 22, 0.8)',   // lime
-    'rgba(20, 184, 166, 0.8)',   // teal
-    'rgba(99, 102, 241, 0.8)',   // indigo
-    'rgba(168, 85, 247, 0.8)',   // violet
-    'rgba(244, 63, 94, 0.8)',    // rose
-    'rgba(252, 211, 77, 0.8)'    // glowing yellow
+    'rgba(56, 189, 248, 0.8)',   // Sky Blue
+    'rgba(249, 115, 22, 0.8)',   // Bright Orange
+    'rgba(16, 185, 129, 0.8)',   // Emerald Green
+    'rgba(236, 72, 153, 0.8)',   // Hot Pink
+    'rgba(234, 179, 8, 0.8)',    // Yellow
+    'rgba(139, 92, 246, 0.8)',   // Purple
+    'rgba(6, 182, 212, 0.8)',    // Cyan
+    'rgba(239, 68, 68, 0.8)',    // Red
+    'rgba(132, 204, 22, 0.8)',   // Lime
+    'rgba(217, 70, 239, 0.8)',   // Fuchsia
+    'rgba(20, 184, 166, 0.8)',   // Teal
+    'rgba(99, 102, 241, 0.8)',   // Indigo
+    'rgba(168, 85, 247, 0.8)',   // Violet
+    'rgba(244, 63, 94, 0.8)',    // Rose
+    'rgba(252, 211, 77, 0.8)'    // Glowing Yellow
 ];
 
 let chart;
@@ -24,6 +24,8 @@ let yAxisFeature = 'danceability';
 let zAxisFeature = 'loudness';
 let currentTab = 'home';
 let currentAssignments = [];
+let pcaResult = null;
+let isPCA = false;
 let elbowChartInstance;
 let silhouetteChartInstance;
 
@@ -56,6 +58,11 @@ function init() {
         ySelect.add(optY);
         if(zSelect) zSelect.add(optZ);
     });
+
+    // Setup Custom Dropdowns
+    setupCustomDropdown(xSelect);
+    setupCustomDropdown(ySelect);
+    if(zSelect) setupCustomDropdown(zSelect);
     
     // Event Listeners
     kSlider.addEventListener('input', (e) => {
@@ -87,12 +94,20 @@ function init() {
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             tabBtns.forEach(b => b.classList.remove('active'));
-            views.forEach(v => v.classList.add('hidden'));
+            views.forEach(v => {
+                v.classList.add('hidden');
+                v.classList.remove('fade-enter');
+            });
             
             btn.classList.add('active');
             currentTab = btn.getAttribute('data-tab');
             const targetView = document.getElementById(`view-${currentTab}`);
-            if(targetView) targetView.classList.remove('hidden');
+            if(targetView) {
+                targetView.classList.remove('hidden');
+                // trigger reflow
+                void targetView.offsetWidth;
+                targetView.classList.add('fade-enter');
+            }
             
             const sidebarControls = document.getElementById('sidebar-controls');
             const sharedSongs = document.getElementById('shared-songs-container');
@@ -149,6 +164,67 @@ function init() {
         });
     }
     
+    const footerAboutLink = document.getElementById('footer-about-link');
+    if (footerAboutLink) {
+        footerAboutLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const aboutBtn = document.querySelector('.nav-btn[data-tab="about"]');
+            if (aboutBtn) aboutBtn.click();
+        });
+    }
+
+    // Easter Egg Navigation
+    function showHiddenView(viewId) {
+        const currentViewElement = document.getElementById(`view-${currentTab}`);
+        const nextViewElement = document.getElementById(viewId);
+        
+        if (currentViewElement) {
+            currentViewElement.classList.remove('active');
+            currentViewElement.classList.add('hidden');
+        }
+        
+        if (nextViewElement) {
+            nextViewElement.classList.remove('hidden');
+            void nextViewElement.offsetWidth; // Reflow
+            nextViewElement.classList.add('active');
+            nextViewElement.classList.add('fade-in');
+        }
+        
+        currentTab = viewId.replace('view-', '');
+        
+        const controls = document.getElementById('sidebar-controls');
+        if (controls) controls.classList.remove('show');
+        const mainSidebar = document.getElementById('main-sidebar');
+        if (mainSidebar) mainSidebar.classList.add('collapsed');
+        
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    const footerFeaturesLink = document.getElementById('footer-features-link');
+    if (footerFeaturesLink) {
+        footerFeaturesLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const btn3d = document.querySelector('.nav-btn[data-tab="3d"]');
+            if (btn3d) btn3d.click();
+        });
+    }
+
+    const footerPrivacyLink = document.getElementById('footer-privacy-link');
+    if (footerPrivacyLink) {
+        footerPrivacyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showHiddenView('view-privacy');
+        });
+    }
+
+    const footerContactLink = document.getElementById('footer-contact-link');
+    if (footerContactLink) {
+        footerContactLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showHiddenView('view-contact');
+        });
+    }
+    
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', () => {
             evalModal.classList.add('hidden');
@@ -164,8 +240,113 @@ function init() {
         });
     }
 
+    // Setup Toggle for Algorithms
+    const btnKMeans = document.getElementById('btn-kmeans');
+    const btnPca = document.getElementById('btn-pca');
+    const indicator = document.querySelector('.algo-indicator');
+    const axisControls = document.getElementById('axis-controls');
+    const insightBox = document.getElementById('insight-box');
+    const pcaInsightsBox = document.getElementById('pca-insights-box');
+
+    if (btnKMeans && btnPca && indicator && axisControls) {
+        btnKMeans.addEventListener('click', () => {
+            if (!isPCA) return;
+            isPCA = false;
+            btnKMeans.classList.add('active');
+            btnPca.classList.remove('active');
+            indicator.style.transform = 'translateX(0)';
+            axisControls.classList.remove('collapsed');
+            if (insightBox) insightBox.classList.remove('hidden');
+            if (pcaInsightsBox) pcaInsightsBox.classList.add('hidden');
+            updateChartData();
+        });
+
+        btnPca.addEventListener('click', () => {
+            if (isPCA) return;
+            isPCA = true;
+            btnPca.classList.add('active');
+            btnKMeans.classList.remove('active');
+            indicator.style.transform = 'translateX(100%)';
+            axisControls.classList.add('collapsed');
+            if (insightBox) insightBox.classList.add('hidden');
+            if (pcaInsightsBox) {
+                pcaInsightsBox.classList.remove('hidden');
+                updatePCAInsights();
+            }
+            updateChartData();
+        });
+    }
+
+    // Precompute PCA
+    const scaledDataset = musicData.data.map(d => d.scaled);
+    if (typeof computePCA === 'function') {
+        pcaResult = computePCA(scaledDataset, 3);
+    }
+
     // Initial Calculation
     recalculateClusters();
+}
+
+function updatePCAInsights() {
+    if (!pcaResult) return;
+    const is3D = currentTab === '3d';
+    const numComps = is3D ? 3 : 2;
+    
+    // Variance
+    let explainedSum = 0;
+    for (let i = 0; i < numComps; i++) {
+        explainedSum += pcaResult.eigenvalues[i];
+    }
+    const varPercent = (explainedSum / pcaResult.totalVariance) * 100;
+    
+    const varText = document.getElementById('pca-variance-text');
+    if (varText) {
+        varText.innerHTML = `<strong>Explained Variance:</strong> The current ${numComps} Principal Components capture <strong>${varPercent.toFixed(1)}%</strong> of the total information from all 9 features.`;
+    }
+    
+    // Loadings
+    const loadingsText = document.getElementById('pca-loadings-text');
+    if (loadingsText) {
+        let html = `<strong>Top Feature Drivers:</strong><div style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.75rem;">`;
+        for (let i = 0; i < numComps; i++) {
+            const vector = pcaResult.eigenvectors[i];
+            
+            // Map weights and sort
+            let weights = musicData.features.map((f, idx) => ({ 
+                feature: f.charAt(0).toUpperCase() + f.slice(1), // Capitalize
+                weight: Math.abs(vector[idx]), 
+                realWeight: vector[idx] 
+            }));
+            weights.sort((a, b) => b.weight - a.weight);
+            
+            const topFeatures = weights.slice(0, 3);
+            const maxWeight = topFeatures[0].weight || 1;
+            
+            html += `<div>
+                <strong style="color: #60a5fa; font-size: 0.9rem;">PC${i+1}</strong>
+                <div style="margin-top: 0.4rem; display:flex; flex-direction:column; gap:0.4rem;">`;
+            
+            topFeatures.forEach(w => {
+                const barWidth = (w.weight / maxWeight) * 100;
+                const isPositive = w.realWeight > 0;
+                const barColor = isPositive ? '#10b981' : '#f43f5e'; // Emerald for +, Rose for -
+                const dirText = isPositive ? '+' : '-';
+                
+                html += `
+                <div style="display:flex; align-items:center; font-size:0.75rem;">
+                    <span style="width: 85px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color: #cbd5e1;">${w.feature}</span>
+                    <div style="flex:1; height: 6px; background: rgba(255,255,255,0.05); border-radius:3px; margin: 0 0.5rem; overflow:hidden;">
+                        <div style="height: 100%; width: ${barWidth}%; background: ${barColor}; border-radius:3px;"></div>
+                    </div>
+                    <span style="width: 20px; text-align:right; font-weight: bold; color: ${barColor};">${dirText}</span>
+                </div>`;
+            });
+            
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+        loadingsText.innerHTML = html;
+    }
 }
 
 function recalculateClusters() {
@@ -206,18 +387,18 @@ function updateChartData() {
         const item = musicData.data[i];
         const clusterIdx = currentAssignments[i];
         
-        // Use raw original values for display
+        // Use raw original values for display, or PCA coordinates
         datasets[clusterIdx].data.push({
-            x: item.original[xAxisFeature],
-            y: item.original[yAxisFeature],
+            x: isPCA ? pcaResult.projectedData[i][0] : item.original[xAxisFeature],
+            y: isPCA ? pcaResult.projectedData[i][1] : item.original[yAxisFeature],
             rawItem: item
         });
     }
     
     if (chart) {
         chart.data.datasets = datasets;
-        chart.options.scales.x.title.text = xAxisFeature.toUpperCase();
-        chart.options.scales.y.title.text = yAxisFeature.toUpperCase();
+        chart.options.scales.x.title.text = isPCA ? 'PRINCIPAL COMPONENT 1' : xAxisFeature.toUpperCase();
+        chart.options.scales.y.title.text = isPCA ? 'PRINCIPAL COMPONENT 2' : yAxisFeature.toUpperCase();
         chart.update();
     } else {
         createChart(datasets);
@@ -269,11 +450,19 @@ function createChart(datasets) {
                         },
                         label: (item) => {
                             const raw = item.raw.rawItem;
-                            return [
-                                `Artist: ${raw.artist}`,
-                                `${xAxisFeature}: ${item.raw.x.toFixed(3)}`,
-                                `${yAxisFeature}: ${item.raw.y.toFixed(3)}`
-                            ];
+                            if (isPCA) {
+                                return [
+                                    `Artist: ${raw.artist}`,
+                                    `PC1: ${item.raw.x.toFixed(3)}`,
+                                    `PC2: ${item.raw.y.toFixed(3)}`
+                                ];
+                            } else {
+                                return [
+                                    `Artist: ${raw.artist}`,
+                                    `${xAxisFeature}: ${item.raw.x.toFixed(3)}`,
+                                    `${yAxisFeature}: ${item.raw.y.toFixed(3)}`
+                                ];
+                            }
                         }
                     }
                 }
@@ -283,7 +472,7 @@ function createChart(datasets) {
                     grid: { color: 'rgba(255, 255, 255, 0.05)' },
                     title: {
                         display: true,
-                        text: xAxisFeature.toUpperCase(),
+                        text: isPCA ? 'PRINCIPAL COMPONENT 1' : xAxisFeature.toUpperCase(),
                         color: '#f8fafc',
                         font: { size: 12, weight: 'bold' }
                     }
@@ -292,7 +481,7 @@ function createChart(datasets) {
                     grid: { color: 'rgba(255, 255, 255, 0.05)' },
                     title: {
                         display: true,
-                        text: yAxisFeature.toUpperCase(),
+                        text: isPCA ? 'PRINCIPAL COMPONENT 2' : yAxisFeature.toUpperCase(),
                         color: '#f8fafc',
                         font: { size: 12, weight: 'bold' }
                     }
@@ -372,9 +561,9 @@ function update3DChartData() {
         const item = musicData.data[i];
         const clusterIdx = currentAssignments[i];
         if (clusterIdx !== undefined && data[clusterIdx]) {
-            data[clusterIdx].x.push(item.original[xAxisFeature]);
-            data[clusterIdx].y.push(item.original[yAxisFeature]);
-            data[clusterIdx].z.push(item.original[zAxisFeature]);
+            data[clusterIdx].x.push(isPCA ? pcaResult.projectedData[i][0] : item.original[xAxisFeature]);
+            data[clusterIdx].y.push(isPCA ? pcaResult.projectedData[i][1] : item.original[yAxisFeature]);
+            data[clusterIdx].z.push(isPCA ? pcaResult.projectedData[i][2] : item.original[zAxisFeature]);
             data[clusterIdx].text.push(`${item.name} - ${item.artist}`);
         }
     }
@@ -384,9 +573,9 @@ function update3DChartData() {
         paper_bgcolor: 'transparent',
         plot_bgcolor: 'transparent',
         scene: {
-            xaxis: { title: xAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
-            yaxis: { title: yAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
-            zaxis: { title: zAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            xaxis: { title: isPCA ? 'PC1' : xAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            yaxis: { title: isPCA ? 'PC2' : yAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
+            zaxis: { title: isPCA ? 'PC3' : zAxisFeature.toUpperCase(), backgroundcolor: 'transparent', gridcolor: 'rgba(255,255,255,0.1)' },
             bgcolor: 'transparent'
         },
         font: { color: '#f8fafc', family: 'Inter' },
@@ -418,15 +607,95 @@ function renderClusterSongs() {
         sample.forEach(s => {
             const originalIndex = musicData.data.indexOf(s);
             html += `<div class="song-card" style="border-left-color: ${color}">
-                <div class="song-card-title">${s.name}</div>
-                <div class="song-card-artist">${s.artist}</div>
-                <button class="find-similar-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin-top: 0.5rem; border-radius: 6px; width: 100%;" onclick="findSimilarSong(${originalIndex})">Find Similar</button>
+                <div class="song-card-header">
+                    <div class="song-icon">🎵</div>
+                    <div style="min-width: 0;">
+                        <div class="song-card-title">${s.name}</div>
+                        <div class="song-card-artist">${s.artist}</div>
+                    </div>
+                </div>
+                <button class="find-similar-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin-top: auto; border-radius: 6px; width: 100%;" onclick="findSimilarSong(${originalIndex})">Find Similar</button>
             </div>`;
         });
         
         html += `</div></div>`;
     }
     container.innerHTML = html;
+}
+
+function setupCustomDropdown(selectElement) {
+    selectElement.style.display = 'none';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-select-wrapper';
+    
+    const trigger = document.createElement('div');
+    trigger.className = 'custom-select-trigger';
+    trigger.textContent = selectElement.options[selectElement.selectedIndex].text;
+    
+    const optionsContainer = document.createElement('div');
+    optionsContainer.className = 'custom-options';
+    
+    Array.from(selectElement.options).forEach((option) => {
+        const customOption = document.createElement('div');
+        customOption.className = 'custom-option';
+        if (option.selected) customOption.classList.add('selected');
+        customOption.textContent = option.text;
+        customOption.dataset.value = option.value;
+        
+        customOption.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectElement.value = this.dataset.value;
+            trigger.textContent = this.textContent;
+            
+            optionsContainer.querySelectorAll('.custom-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            wrapper.classList.remove('open');
+            selectElement.dispatchEvent(new Event('change'));
+        });
+        
+        optionsContainer.appendChild(customOption);
+    });
+    
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(optionsContainer);
+    
+    selectElement.parentNode.insertBefore(wrapper, selectElement.nextSibling);
+    
+    trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        document.querySelectorAll('.custom-select-wrapper.open').forEach(w => {
+            if (w !== wrapper) {
+                w.classList.remove('open');
+                w.style.zIndex = '1';
+            }
+        });
+        wrapper.classList.toggle('open');
+        if (wrapper.classList.contains('open')) {
+            wrapper.style.zIndex = '100';
+        } else {
+            wrapper.style.zIndex = '1';
+        }
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!wrapper.contains(e.target)) {
+            wrapper.classList.remove('open');
+            wrapper.style.zIndex = '1';
+        }
+    });
+
+    selectElement.addEventListener('change', function() {
+        trigger.textContent = selectElement.options[selectElement.selectedIndex].text;
+        optionsContainer.querySelectorAll('.custom-option').forEach(o => {
+            if (o.dataset.value === selectElement.value) {
+                o.classList.add('selected');
+            } else {
+                o.classList.remove('selected');
+            }
+        });
+    });
 }
 
 function findSimilarSong(targetIndex) {
