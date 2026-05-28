@@ -3,7 +3,7 @@ import json
 
 def prepare():
     print("Reading data...")
-    df = pd.read_csv('../data/combined_spotify_data.csv')
+    df = pd.read_csv('../data/combined_spotify_data.csv', encoding='utf-8')
     
     # We select numerical features suitable for clustering.
     features = [
@@ -37,6 +37,9 @@ def prepare():
             'id': int(i),
             'name': str(df['track_name'].iloc[i]),
             'artist': str(df['track_artist'].iloc[i]),
+            'popularity': int(df['track_popularity'].iloc[i]) if 'track_popularity' in df.columns else 50,
+            'album': str(df['track_album_name'].iloc[i]) if 'track_album_name' in df.columns else 'Unknown Album',
+            'duration_ms': int(df['duration_ms'].iloc[i]) if 'duration_ms' in df.columns else 0,
             'scaled': [float(scaled[feat].iloc[i]) for feat in features],
             'original': {feat: float(df[feat].iloc[i]) for feat in features}
         }

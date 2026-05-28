@@ -28,6 +28,9 @@ let pcaResult = null;
 let isPCA = false;
 let elbowChartInstance;
 let silhouetteChartInstance;
+let customAlbumSongs = [];
+let albumTitle = "Symphony No. 8";
+let albumSuggestion = null;
 
 const loader = document.getElementById('loader');
 const kDisplay = document.getElementById('k-display');
@@ -112,9 +115,13 @@ function init() {
             const sidebarControls = document.getElementById('sidebar-controls');
             const sharedSongs = document.getElementById('shared-songs-container');
             
-            if (currentTab === 'about' || currentTab === 'home') {
+            if (currentTab === 'about' || currentTab === 'home' || currentTab === 'album') {
                 if(sidebarControls) sidebarControls.style.display = 'none';
                 if(sharedSongs) sharedSongs.classList.add('hidden');
+                if (currentTab === 'album') {
+                    // Update layout size on view change
+                    setTimeout(renderAlbumSlots, 50);
+                }
             } else {
                 if(sidebarControls) sidebarControls.style.display = 'flex';
                 if(sharedSongs) sharedSongs.classList.remove('hidden');
@@ -285,6 +292,35 @@ function init() {
 
     // Initial Calculation
     recalculateClusters();
+
+    // Custom Album Listeners
+    const albumTitleInput = document.getElementById('album-title-input');
+    if (albumTitleInput) {
+        albumTitleInput.value = albumTitle;
+        albumTitleInput.addEventListener('input', (e) => {
+            albumTitle = e.target.value || "Untitled Album";
+            drawProceduralCover();
+        });
+    }
+
+    const albumSearchInput = document.getElementById('album-search-input');
+    if (albumSearchInput) {
+        albumSearchInput.value = '';
+        albumSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            executeAlbumSearch(query);
+        });
+    }
+
+    const regenBtn = document.getElementById('regenerate-art-btn');
+    if (regenBtn) {
+        regenBtn.addEventListener('click', () => {
+            drawProceduralCover(true);
+        });
+    }
+
+    // Initial render of empty slots
+    renderAlbumSlots();
 }
 
 function updatePCAInsights() {
@@ -614,7 +650,10 @@ function renderClusterSongs() {
                         <div class="song-card-artist">${s.artist}</div>
                     </div>
                 </div>
-                <button class="find-similar-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; margin-top: auto; border-radius: 6px; width: 100%;" onclick="findSimilarSong(${originalIndex})">Find Similar</button>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:auto; width:100%;">
+                    <button class="find-similar-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 6px; width: 100%;" onclick="findSimilarSong(${originalIndex})">Find Similar</button>
+                    <button class="add-to-album-btn glow-btn" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 6px; width: 100%; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);" onclick="addToCustomAlbum(${originalIndex})">Add to Album</button>
+                </div>
             </div>`;
         });
         
@@ -1017,5 +1056,585 @@ function triggerPairingSearch(fixedAxis, fixedFeature) {
     }
     
     nextK();
+}
+
+/* ==========================================================================
+   Custom Album Creator Helpers
+   ========================================================================== */
+
+function showToastMessage(text, icon = "🎵") {
+    const container = document.getElementById('toast-container');
+    const msg = document.getElementById('toast-message');
+    const iconEl = container ? container.querySelector('.toast-icon') : null;
+    const titleEl = container ? container.querySelector('.toast-text strong') : null;
+    if (!container || !msg) return;
+    
+    if (iconEl) iconEl.textContent = icon;
+    if (titleEl) {
+        if (icon === "💿") titleEl.textContent = "Custom Album";
+        else if (icon === "⚠️") titleEl.textContent = "Warning";
+        else if (icon === "🗑️") titleEl.textContent = "Custom Album";
+        else titleEl.textContent = "Closest Song";
+    }
+    msg.textContent = text;
+    container.classList.remove('hidden');
+    
+    // Auto-close after 3 seconds
+    if (window.toastTimeout) clearTimeout(window.toastTimeout);
+    window.toastTimeout = setTimeout(() => {
+        container.classList.add('hidden');
+    }, 3000);
+}
+
+// Override original recommendation toast to use general function
+function showRecommendationToast(song) {
+    showToastMessage(`${song.name} by ${song.artist}`, "🎵");
+}
+
+function calculateAlbumSuggestion() {
+    const len = customAlbumSongs.length;
+    if (len < 5 || len >= 8) {
+        albumSuggestion = null;
+        return;
+    }
+    
+    // Calculate average vector in 9D space of all currently selected tracks
+    let avgVector = new Array(9).fill(0);
+    customAlbumSongs.forEach(song => {
+        for (let j = 0; j < 9; j++) {
+            avgVector[j] += song.scaled[j];
+        }
+    });
+    for (let j = 0; j < 9; j++) {
+        avgVector[j] /= len;
+    }
+    
+    // Find closest song
+    let closestSong = null;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < musicData.data.length; i++) {
+        const candidate = musicData.data[i];
+        
+        // Skip if already in the album
+        if (customAlbumSongs.some(s => s.id === candidate.id)) continue;
+        
+        // Compute Euclidean distance
+        let distSq = 0;
+        for (let j = 0; j < 9; j++) {
+            distSq += Math.pow(avgVector[j] - candidate.scaled[j], 2);
+        }
+        
+        if (distSq < minDistance) {
+            minDistance = distSq;
+            closestSong = candidate;
+        }
+    }
+    
+    albumSuggestion = closestSong;
+}
+
+function acceptAlbumSuggestion() {
+    if (!albumSuggestion) return;
+    const song = albumSuggestion;
+    albumSuggestion = null;
+    customAlbumSongs.push(song);
+    renderAlbumSlots();
+    
+    // Refresh search results to show disabled "Added" status
+    const searchInput = document.getElementById('album-search-input');
+    if (searchInput) {
+        executeAlbumSearch(searchInput.value.trim().toLowerCase());
+    }
+    
+    showToastMessage(`Accepted suggestion: "${song.name}"!`, "💿");
+}
+
+function renderAlbumSlots() {
+    const container = document.getElementById('album-slots');
+    if (!container) return;
+    
+    const len = customAlbumSongs.length;
+    // Calculate suggestion if 5, 6, or 7 songs are added
+    if (len >= 5 && len < 8) {
+        calculateAlbumSuggestion();
+    } else {
+        albumSuggestion = null;
+    }
+    
+    let html = '';
+    for (let i = 0; i < 8; i++) {
+        const song = customAlbumSongs[i];
+        if (song) {
+            html += `
+            <div class="album-slot filled">
+                <div class="slot-track-icon">💿</div>
+                <div class="slot-track-details">
+                    <div class="slot-track-title" title="${song.name}">${song.name}</div>
+                    <div class="slot-track-artist" title="${song.artist}">${song.artist}</div>
+                </div>
+                <button class="slot-remove-btn" onclick="removeFromCustomAlbum(${i})">&times;</button>
+            </div>`;
+        } else if (i === len && albumSuggestion) {
+            html += `
+            <div class="album-slot suggested">
+                <div class="slot-suggest-icon">✨</div>
+                <div class="slot-track-details">
+                    <div class="slot-track-title" style="color: #c084fc; font-weight: 700;" title="${albumSuggestion.name}">${albumSuggestion.name}</div>
+                    <div class="slot-track-artist" title="${albumSuggestion.artist}">${albumSuggestion.artist}</div>
+                    <div style="font-size: 0.7rem; color: #a78bfa; font-weight: 600; text-transform: uppercase; margin-top: 0.15rem;">✨ Suggested Track</div>
+                </div>
+                <button class="slot-accept-btn" onclick="acceptAlbumSuggestion()">Accept</button>
+            </div>`;
+        } else {
+            html += `
+            <div class="album-slot empty" id="slot-${i}">
+                <div class="slot-number">${i + 1}</div>
+                <div class="slot-placeholder">Empty Slot</div>
+            </div>`;
+        }
+    }
+    container.innerHTML = html;
+    
+    // Update badge count
+    const countBadge = document.getElementById('album-track-count');
+    if (countBadge) {
+        countBadge.textContent = `${len} / 8 Tracks`;
+    }
+    
+    // Show/hide evaluation
+    const evalContainer = document.getElementById('album-evaluation');
+    if (evalContainer) {
+        if (len > 0) {
+            evalContainer.classList.remove('hidden');
+            updateAlbumEvaluation();
+        } else {
+            evalContainer.classList.add('hidden');
+        }
+    }
+}
+
+function addToCustomAlbum(songIndex) {
+    if (songIndex < 0 || songIndex >= musicData.data.length) return;
+    const song = musicData.data[songIndex];
+    
+    // Check if already in album
+    if (customAlbumSongs.some(s => s.id === song.id)) {
+        showToastMessage(`"${song.name}" is already in your album!`, "⚠️");
+        return;
+    }
+    
+    if (customAlbumSongs.length >= 8) {
+        showToastMessage("Your album is full! Remove a song first.", "⚠️");
+        return;
+    }
+    
+    customAlbumSongs.push(song);
+    
+    // Reset suggestion state if we are out of recommendation bounds
+    if (customAlbumSongs.length < 5 || customAlbumSongs.length >= 8) {
+        albumSuggestion = null;
+    }
+    
+    renderAlbumSlots();
+    
+    // Refresh search results to show disabled "Added" status
+    const searchInput = document.getElementById('album-search-input');
+    if (searchInput) {
+        executeAlbumSearch(searchInput.value.trim().toLowerCase());
+    }
+    
+    showToastMessage(`Added "${song.name}" to your album!`, "💿");
+}
+
+function removeFromCustomAlbum(index) {
+    if (index < 0 || index >= customAlbumSongs.length) return;
+    const removed = customAlbumSongs.splice(index, 1)[0];
+    
+    // Reset suggestion state on removal
+    albumSuggestion = null;
+    
+    renderAlbumSlots();
+    
+    // Refresh search results to show enable "Add" status
+    const searchInput = document.getElementById('album-search-input');
+    if (searchInput) {
+        executeAlbumSearch(searchInput.value.trim().toLowerCase());
+    }
+    
+    showToastMessage(`Removed "${removed.name}"`, "🗑️");
+}
+
+function executeAlbumSearch(query) {
+    const container = document.getElementById('album-search-results');
+    if (!container) return;
+    
+    if (!query) {
+        container.innerHTML = '<p class="search-placeholder">Start typing to search songs from our dataset...</p>';
+        return;
+    }
+    
+    // Normalization helper
+    const cleanText = (str) => {
+        if (!str) return '';
+        return str.toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/[’'’`´]/g, "'"); // replace various curly/straight apostrophes
+    };
+    
+    const cleanQuery = cleanText(query);
+    
+    // Filter matches and deduplicate
+    const matches = [];
+    const seen = new Set();
+    
+    for (let i = 0; i < musicData.data.length; i++) {
+        const song = musicData.data[i];
+        const cleanName = cleanText(song.name);
+        const cleanArtist = cleanText(song.artist);
+        
+        if (cleanName.includes(cleanQuery) || cleanArtist.includes(cleanQuery)) {
+            const uniqKey = `${cleanName.trim()}|||${cleanArtist.trim()}`;
+            if (!seen.has(uniqKey)) {
+                seen.add(uniqKey);
+                matches.push({ song, originalIndex: i });
+                if (matches.length >= 100) break; // cap at 100 for performance
+            }
+        }
+    }
+    
+    if (matches.length === 0) {
+        container.innerHTML = '<p class="search-placeholder">No songs found matching your search.</p>';
+        return;
+    }
+    
+    let html = '';
+    matches.forEach(m => {
+        const s = m.song;
+        const isAdded = customAlbumSongs.some(item => item.id === s.id);
+        const buttonHTML = isAdded 
+            ? `<button class="result-add-btn glow-btn" style="background: rgba(255,255,255,0.08); box-shadow: none; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted);">Added</button>`
+            : `<button class="result-add-btn glow-btn" onclick="addToCustomAlbum(${m.originalIndex})">Add</button>`;
+        
+        html += `
+        <div class="search-result-item">
+            <div class="result-track-details">
+                <div class="result-track-title" title="${s.name}">${s.name}</div>
+                <div class="result-track-artist" title="${s.artist}">${s.artist}</div>
+                <div class="result-track-pop">🔥 Popularity: ${s.popularity}%</div>
+            </div>
+            ${buttonHTML}
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function updateAlbumEvaluation() {
+    if (customAlbumSongs.length === 0) return;
+    
+    let totalPop = 0;
+    let avgFeatures = { energy: 0, danceability: 0, valence: 0, acousticness: 0, tempo: 0 };
+    
+    customAlbumSongs.forEach(s => {
+        totalPop += s.popularity;
+        avgFeatures.energy += s.original.energy;
+        avgFeatures.danceability += s.original.danceability;
+        avgFeatures.valence += s.original.valence;
+        avgFeatures.acousticness += s.original.acousticness;
+        avgFeatures.tempo += s.original.tempo;
+    });
+    
+    const count = customAlbumSongs.length;
+    const avgPop = totalPop / count;
+    avgFeatures.energy /= count;
+    avgFeatures.danceability /= count;
+    avgFeatures.valence /= count;
+    avgFeatures.acousticness /= count;
+    avgFeatures.tempo /= count;
+    
+    // 1. Popularity display
+    const popVal = document.getElementById('album-popularity-val');
+    const popDesc = document.getElementById('album-popularity-desc');
+    if (popVal && popDesc) {
+        popVal.textContent = `${Math.round(avgPop)}%`;
+        if (avgPop >= 80) popDesc.textContent = "💥 Mainstream Blockbusters";
+        else if (avgPop >= 55) popDesc.textContent = "🎧 Popular Radio Mix";
+        else if (avgPop >= 30) popDesc.textContent = "🌟 Alternative / Indie Gems";
+        else popDesc.textContent = "🌲 Deep Underground Cuts";
+    }
+    
+    // 2. Cohesiveness Score
+    // Compute standard deviation of scaled features
+    let featureVariances = [];
+    const features = ['energy', 'danceability', 'valence', 'acousticness', 'tempo'];
+    
+    features.forEach(feat => {
+        const featIdx = musicData.features.indexOf(feat);
+        // Calculate mean of scaled feature
+        let sumScaled = 0;
+        customAlbumSongs.forEach(s => {
+            sumScaled += s.scaled[featIdx];
+        });
+        const meanScaled = sumScaled / count;
+        
+        // Calculate variance
+        let variance = 0;
+        customAlbumSongs.forEach(s => {
+            variance += Math.pow(s.scaled[featIdx] - meanScaled, 2);
+        });
+        variance /= count;
+        featureVariances.push(variance);
+    });
+    
+    // Average variance across our features
+    const avgVar = featureVariances.reduce((a, b) => a + b, 0) / featureVariances.length;
+    const aggStd = Math.sqrt(avgVar);
+    
+    // Map to a 0-100 Cohesiveness Score
+    // Scale is typically 0.2 to 1.8. Let's make 0.3 extremely cohesive (100) and 1.5 chaotic (0).
+    let cohesionScore = Math.max(0, Math.min(100, Math.round(100 * (1.3 - aggStd) / 1.0)));
+    // If only 1 song, it's perfectly cohesive
+    if (count === 1) cohesionScore = 100;
+    
+    const cohesionVal = document.getElementById('album-cohesion-val');
+    const cohesionDesc = document.getElementById('album-cohesion-desc');
+    if (cohesionVal && cohesionDesc) {
+        cohesionVal.textContent = `${cohesionScore}%`;
+        if (cohesionScore >= 80) cohesionDesc.textContent = "💿 Concept Album (High Cohesion)";
+        else if (cohesionScore >= 55) cohesionDesc.textContent = "🎼 Balanced Curated Flow";
+        else if (cohesionScore >= 30) cohesionDesc.textContent = "📻 Diverse Mixtape";
+        else cohesionDesc.textContent = "🌀 Chaos Shuffle (Eclectic)";
+    }
+    
+    // 3. Vibe Matching
+    const vibeTitle = document.getElementById('album-vibe-title');
+    const vibeDesc = document.getElementById('album-vibe-desc');
+    
+    if (vibeTitle && vibeDesc) {
+        if (avgFeatures.energy > 0.68 && avgFeatures.danceability > 0.68) {
+            vibeTitle.textContent = "🎉 Club Party Energy";
+            vibeDesc.textContent = "Packed with highly danceable, rhythmic, and high-energy tracks. This album is engineered to get people moving.";
+        } else if (avgFeatures.energy > 0.58 && avgFeatures.valence > 0.58) {
+            vibeTitle.textContent = "☀️ Warm & Uplifting Sunshine";
+            vibeDesc.textContent = "Vibrant, happy tracks with high emotional positivity. Perfect for road trips, sunny days, or boosting your mood.";
+        } else if (avgFeatures.acousticness > 0.6 && avgFeatures.energy < 0.4) {
+            vibeTitle.textContent = "🌿 Acoustic Calm & Haven";
+            vibeDesc.textContent = "Soft, unplugged acoustic tones dominate. Ideal for cozy evenings, coffee shops, reading, or calming study sessions.";
+        } else if (avgFeatures.energy > 0.65 && avgFeatures.valence < 0.4) {
+            vibeTitle.textContent = "🔥 Intense & Gritty Beats";
+            vibeDesc.textContent = "Heavy, loud, and dark-tinged tracks. Creates a powerful, intense, and driving atmosphere for focus or workouts.";
+        } else if (avgFeatures.valence < 0.4 && avgFeatures.energy < 0.45) {
+            vibeTitle.textContent = "🌧️ Melancholic Late-Night Reflection";
+            vibeDesc.textContent = "Somber, slower, and emotionally reflective melodies. Best suited for quiet introspection or late-night drives.";
+        } else if (avgFeatures.acousticness < 0.2 && avgFeatures.energy < 0.4 && avgFeatures.danceability > 0.5) {
+            vibeTitle.textContent = "🌌 Late Night Electronic Chill";
+            vibeDesc.textContent = "Synthesized, low-energy chill beats that feel modern and atmospheric. Perfect background flow for creative work.";
+        } else {
+            vibeTitle.textContent = "🎨 Eclectic Dynamic Soundscape";
+            vibeDesc.textContent = "A diverse, multi-genre fusion. Traverses a wide spectrum of tempos, volume levels, and acoustic properties.";
+        }
+    }
+    
+    // 4. Update progress bars
+    const featuresToUpdate = ['energy', 'danceability', 'valence', 'acousticness'];
+    featuresToUpdate.forEach(f => {
+        const percentVal = Math.round(avgFeatures[f] * 100);
+        const barFill = document.getElementById(`bar-fill-${f}`);
+        const barVal = document.getElementById(`bar-val-${f}`);
+        if (barFill) barFill.style.width = `${percentVal}%`;
+        if (barVal) barVal.textContent = `${percentVal}%`;
+    });
+    
+    const tempoFill = document.getElementById('bar-fill-tempo');
+    const tempoVal = document.getElementById('bar-val-tempo');
+    if (tempoFill) {
+        // Normal tempo range 50 - 200 BPM
+        const tempoPercent = Math.max(0, Math.min(100, Math.round(((avgFeatures.tempo - 50) / 150) * 100)));
+        tempoFill.style.width = `${tempoPercent}%`;
+    }
+    if (tempoVal) {
+        tempoVal.textContent = `${Math.round(avgFeatures.tempo)} BPM`;
+    }
+    
+    // 5. Draw the album cover
+    drawProceduralCover();
+}
+
+let coverSeed = 42;
+function drawProceduralCover(forceRegenerate = false) {
+    const canvas = document.getElementById('album-cover-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    if (forceRegenerate) {
+        coverSeed = Math.floor(Math.random() * 1000);
+    }
+    
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    // Calculate averages for visual properties
+    let avgValence = 0.5;
+    let avgEnergy = 0.5;
+    let avgDance = 0.5;
+    let avgTempo = 120;
+    let avgAcoustic = 0.5;
+    
+    if (customAlbumSongs.length > 0) {
+        let sumValence = 0, sumEnergy = 0, sumDance = 0, sumTempo = 0, sumAcoustic = 0;
+        customAlbumSongs.forEach(s => {
+            sumValence += s.original.valence;
+            sumEnergy += s.original.energy;
+            sumDance += s.original.danceability;
+            sumTempo += s.original.tempo;
+            sumAcoustic += s.original.acousticness;
+        });
+        avgValence = sumValence / customAlbumSongs.length;
+        avgEnergy = sumEnergy / customAlbumSongs.length;
+        avgDance = sumDance / customAlbumSongs.length;
+        avgTempo = sumTempo / customAlbumSongs.length;
+        avgAcoustic = sumAcoustic / customAlbumSongs.length;
+    }
+    
+    // Determine color palette based on Valence and Energy
+    let color1, color2, color3;
+    if (avgValence > 0.6) {
+        // Bright / Warm / Happy
+        color1 = `hsl(${Math.round(30 + avgValence * 50)}, 85%, 55%)`; // Warm gold / orange
+        color2 = `hsl(${Math.round(310 + avgEnergy * 40)}, 80%, 50%)`; // Radiant magenta/pink
+        color3 = `hsl(${Math.round(180 + avgDance * 50)}, 90%, 45%)`; // Aqua / Cyan
+    } else if (avgValence < 0.4 && avgEnergy < 0.45) {
+        // Melancholic / Moody / Deep
+        color1 = `hsl(${Math.round(210 + avgValence * 20)}, 50%, 25%)`; // Deep slate blue
+        color2 = `hsl(${Math.round(270 + avgEnergy * 30)}, 40%, 20%)`; // Dim purple
+        color3 = `hsl(${Math.round(340 + avgValence * 40)}, 45%, 30%)`; // Crimson / Plum
+    } else if (avgEnergy > 0.7) {
+        // Cyberpunk / High Contrast
+        color1 = `hsl(320, 95%, 50%)`; // Electric pink
+        color2 = `hsl(190, 95%, 45%)`; // Electric cyan
+        color3 = `hsl(260, 90%, 40%)`; // Deep violet
+    } else if (avgAcoustic > 0.6) {
+        // Earthy / Soft Pastels
+        color1 = `hsl(40, 45%, 40%)`; // Soft copper
+        color2 = `hsl(140, 30%, 35%)`; // Muted sage green
+        color3 = `hsl(20, 40%, 45%)`; // Clay terracotta
+    } else {
+        // Balanced / Symphony default
+        color1 = `#3b82f6`; // Indigo blue
+        color2 = `#8b5cf6`; // Royal purple
+        color3 = `#ec4899`; // Hot pink
+    }
+    
+    // Draw Background Gradient
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, color1);
+    grad.addColorStop(0.5, color2);
+    grad.addColorStop(1, color3);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    
+    // Draw Abstract shapes using coverSeed
+    ctx.save();
+    // Combine song IDs for a deterministic layout seed
+    let combinedIdSum = customAlbumSongs.reduce((sum, s) => sum + s.id, 0) + coverSeed;
+    
+    // Pseudo random generator based on seed
+    function pseudoRand(s) {
+        let x = Math.sin(s) * 10000;
+        return x - Math.floor(x);
+    }
+    
+    let rSeed = combinedIdSum;
+    
+    // Number of shapes depends on tempo and danceability
+    const shapeCount = Math.round(10 + avgTempo / 10);
+    
+    for (let i = 0; i < shapeCount; i++) {
+        rSeed += 0.5;
+        const rx = pseudoRand(rSeed) * w;
+        rSeed += 0.5;
+        const ry = pseudoRand(rSeed) * h;
+        rSeed += 0.5;
+        const radius = pseudoRand(rSeed) * (40 + avgDance * 80) + 10;
+        
+        rSeed += 0.5;
+        const shapeType = pseudoRand(rSeed);
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1.5;
+        
+        ctx.beginPath();
+        if (shapeType < 0.4) {
+            // Circle
+            ctx.arc(rx, ry, radius, 0, Math.PI * 2);
+            if (pseudoRand(rSeed + 1) > 0.5) ctx.fill();
+            else ctx.stroke();
+        } else if (shapeType < 0.75) {
+            // Polygon / Diamond
+            const sides = 3 + Math.floor(pseudoRand(rSeed + 2) * 5); // 3 to 7 sides
+            for (let s = 0; s < sides; s++) {
+                const angle = (s / sides) * Math.PI * 2 + pseudoRand(rSeed + 3) * Math.PI;
+                const px = rx + Math.cos(angle) * radius;
+                const py = ry + Math.sin(angle) * radius;
+                if (s === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            if (pseudoRand(rSeed + 4) > 0.5) ctx.fill();
+            else ctx.stroke();
+        } else {
+            // Waves/Curves
+            ctx.moveTo(rx - radius, ry);
+            ctx.quadraticCurveTo(rx, ry - radius * 1.5, rx + radius, ry);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+    
+    // Draw Frosted glass card in center for the album label
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    
+    const cardW = w * 0.85;
+    const cardH = h * 0.32;
+    const cardX = (w - cardW) / 2;
+    const cardY = (h - cardH) / 2;
+    const radius = 12;
+    
+    ctx.beginPath();
+    ctx.moveTo(cardX + radius, cardY);
+    ctx.lineTo(cardX + cardW - radius, cardY);
+    ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+    ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+    ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+    ctx.lineTo(cardX + radius, cardY + cardH);
+    ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+    ctx.lineTo(cardX, cardY + radius);
+    ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    // Draw Typography
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Album Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 1.25rem "Outfit", sans-serif';
+    // Truncate title if too long
+    let displayTitle = albumTitle || "Symphony No. 8";
+    if (displayTitle.length > 22) {
+        displayTitle = displayTitle.substring(0, 20) + "...";
+    }
+    ctx.fillText(displayTitle.toUpperCase(), w / 2, h / 2 - 12);
+    
+    // Subtitle (Curators credit or track list summary)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '600 0.65rem "Inter", sans-serif';
+    ctx.fillText(`CURATED CONCEPT ALBUM • ${customAlbumSongs.length} TRACKS`, w / 2, h / 2 + 15);
 }
 
